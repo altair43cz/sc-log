@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Last Lines Table</title>
+    <title>Last Lines Table - Live</title>
     <style>
         table {
             border-collapse: collapse;
@@ -16,19 +16,82 @@
             background-color: #4CAF50;
             color: white;
         }
+        tr.updated {
+            background-color: #fff9e6;
+            transition: background-color 1s ease-in-out;
+        }
+        .status {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .status.connected {
+            background-color: #e6f7e6;
+            color: #006400;
+        }
+        .status.disconnected {
+            background-color: #ffe6e6;
+            color: #8b0000;
+        }
     </style>
 </head>
 <body>
-    <h1>Last Lines from Numbered Files</h1>
+    <h1>Last Lines from Numbered Files (Live Tail)</h1>
+    <div id="status" class="status disconnected">Connecting...</div>
     <table>
         <tr>
             <th>Last Line of File</th>
         </tr>
         {% for file in files %}
-        <tr>
-            <td>{{ file.last_line }}</td>
+        <tr id="row-{{ file.name }}" data-file="{{ file.name }}">
+            <td id="content-{{ file.name }}">Loading...</td>
         </tr>
         {% endfor %}
     </table>
+
+    <script>
+        const fileRows = new Set();
+        {% for file in files %}
+        fileRows.add('{{ file.name }}');
+        {% endfor %}
+
+        const eventSource = new EventSource('/stream');
+        const statusDiv = document.getElementById('status');
+
+        eventSource.onopen = function() {
+            statusDiv.className = 'status connected';
+            statusDiv.textContent = 'Connected - Streaming Updates';
+        };
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'update') {
+                const file = data.file;
+                const content = data.content;
+                const contentCell = document.getElementById(`content-${file}`);
+                const row = document.getElementById(`row-${file}`);
+                
+                if (contentCell) {
+                    contentCell.textContent = content;
+                    // Add highlight effect
+                    row.classList.add('updated');
+                    setTimeout(() => {
+                        row.classList.remove('updated');
+                    }, 1000);
+                }
+            }
+        };
+
+        eventSource.onerror = function() {
+            statusDiv.className = 'status disconnected';
+            statusDiv.textContent = 'Disconnected - Attempting to reconnect...';
+        };
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            eventSource.close();
+        });
+    </script>
 </body>
 </html>
