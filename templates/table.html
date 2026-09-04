@@ -1,50 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Last Lines Table - Live</title>
+    <title>Connecting...</title>
     <style>
         table {
             border-collapse: collapse;
-            font-family: Arial, sans-serif;
         }
         th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
         }
-        th {
-            background-color: #4CAF50;
-            color: white;
-        }
         tr.updated {
-            background-color: #fff9e6;
             transition: background-color 1s ease-in-out;
-        }
-        .status {
-            margin-bottom: 10px;
-            padding: 5px;
-            border-radius: 3px;
-        }
-        .status.connected {
-            background-color: #e6f7e6;
-            color: #006400;
-        }
-        .status.disconnected {
-            background-color: #ffe6e6;
-            color: #8b0000;
         }
     </style>
 </head>
 <body>
-    <h1>Last Lines from Numbered Files (Live Tail)</h1>
-    <div id="status" class="status disconnected">Connecting...</div>
     <table>
-        <tr>
-            <th>Last Line of File</th>
-        </tr>
         {% for file in files %}
         <tr id="row-{{ file.name }}" data-file="{{ file.name }}">
-            <td id="content-{{ file.name }}">Loading...</td>
+            <td id="content-{{ file.name }}">...</td>
         </tr>
         {% endfor %}
     </table>
@@ -56,11 +32,9 @@
         {% endfor %}
 
         const eventSource = new EventSource('/stream');
-        const statusDiv = document.getElementById('status');
 
         eventSource.onopen = function() {
-            statusDiv.className = 'status connected';
-            statusDiv.textContent = 'Connected - Streaming Updates';
+            document.title = 'Connected - Streaming Updates';
         };
 
         eventSource.onmessage = function(event) {
@@ -84,8 +58,7 @@
         };
 
         eventSource.onerror = function() {
-            statusDiv.className = 'status disconnected';
-            statusDiv.textContent = 'Disconnected - Attempting to reconnect...';
+            document.title = 'Disconnected - Attempting to reconnect...';
         };
 
         // Cleanup on page unload
