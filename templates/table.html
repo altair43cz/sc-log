@@ -20,6 +20,7 @@
     <table>
         {% for file in files %}
         <tr id="row-{{ file.name }}" data-file="{{ file.name }}">
+            <td>{{ file.name }}</td>
             <td id="content-{{ file.name }}">...</td>
         </tr>
         {% endfor %}
