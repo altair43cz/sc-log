@@ -3,28 +3,43 @@
 <head>
     <title>Connecting...</title>
     <style>
+        :root {
+            --cell-padding: 1px 3px;
+            --border-color: #d0d0d0;
+            --font-size: 11px;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #fff;
+        }
+
         table {
             border-collapse: collapse;
-            table-layout: fixed;
-            width: 100%;
+            width: auto;
+            font-size: var(--font-size);
+            line-height: 1.1;
+            white-space: nowrap;
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid var(--border-color);
+            padding: var(--cell-padding);
             text-align: left;
-            vertical-align: top;
-            white-space: pre-wrap;
-            word-break: break-word;
+            font-size: var(--font-size);
         }
         tr.updated {
             transition: background-color 1s ease-in-out;
         }
         .cell-content {
-            min-height: 1.2em;
+            min-height: 0;
             font-family: monospace;
-        }
-        .cell-content * {
-            max-width: 100%;
+            font-size: var(--font-size);
+            line-height: 1.1;
+            padding: 1px 3px;
         }
     </style>
 </head>

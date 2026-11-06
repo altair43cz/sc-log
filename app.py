@@ -26,7 +26,7 @@ def get_data_rows(data_dir):
             if os.path.isfile(filepath):
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.read()
+                        content = f.read().strip()
                 except Exception:
                     content = ''
                 cells.append({'name': filename, 'content': content})
