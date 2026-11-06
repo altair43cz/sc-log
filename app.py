@@ -7,75 +7,86 @@ import json
 app = Flask(__name__)
 
 
+def get_data_rows(data_dir):
+    rows = []
+    if not os.path.exists(data_dir):
+        return rows
+
+    row_names = []
+    for name in os.listdir(data_dir):
+        path = os.path.join(data_dir, name)
+        if os.path.isdir(path) and re.match(r'^\d+$', name):
+            row_names.append(name)
+
+    for row_name in sorted(row_names, key=lambda value: int(value)):
+        dir_path = os.path.join(data_dir, row_name)
+        cells = []
+        for filename in sorted(os.listdir(dir_path)):
+            filepath = os.path.join(dir_path, filename)
+            if os.path.isfile(filepath):
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.read()
+                except Exception:
+                    content = ''
+                cells.append({'name': filename, 'content': content})
+
+        rows.append({
+            'name': row_name,
+            'cells': cells,
+            'cells_by_name': {cell['name']: cell for cell in cells}
+        })
+
+    return rows
+
+
 @app.route('/')
 def index():
-    # Get all files in current directory with numeric names
-    files = []
-    # Use the directory where this script is located
-    data_dir = os.getenv('XDG_RUNTIME_DIR', '/run/user/1000') + \
-        '/sc-log'
+    data_dir = os.getenv('XDG_RUNTIME_DIR', '/run/user/1000') + '/sc-log'
+    rows = get_data_rows(data_dir)
+    file_names = []
+    for row in rows:
+        for cell in row['cells']:
+            if cell['name'] not in file_names:
+                file_names.append(cell['name'])
 
-    if os.path.exists(data_dir):
-        for filename in os.listdir(data_dir):
-            filepath = os.path.join(data_dir, filename)
-            if os.path.isfile(filepath) and re.match(r'^\d+$', filename):
-                files.append({'name': filename})
-
-    # Sort by numeric value
-    files.sort(key=lambda x: int(x['name']))
-
-    return render_template('table.html', files=files)
-
-
-def get_last_line(filepath):
-    """Get the last line of a file"""
-    try:
-        with open(filepath, 'r') as f:
-            lines = f.readlines()
-            return lines[-1].strip() if lines else ""
-    except:
-        return ""
+    return render_template('table.html', rows=rows, file_names=file_names)
 
 
 @app.route('/stream')
 def stream():
     """Server-Sent Events endpoint for streaming file updates"""
     def generate():
-        data_dir = os.getenv('XDG_RUNTIME_DIR', '/run/user/1000') + \
-            '/sc-log'
+        data_dir = os.getenv('XDG_RUNTIME_DIR', '/run/user/1000') + '/sc-log'
 
-        # Initialize cache with current state
-        local_cache = {}
-        if os.path.exists(data_dir):
-            for filename in sorted(os.listdir(data_dir)):
-                filepath = os.path.join(data_dir, filename)
-                if os.path.isfile(filepath) and re.match(r'^\d+$', filename):
-                    current_content = get_last_line(filepath)
-                    local_cache[filename] = current_content
+        def snapshot():
+            state = {}
+            for row in get_data_rows(data_dir):
+                for cell in row['cells']:
+                    state[f"{row['name']}::{cell['name']}"] = cell['content']
+            return state
 
-        # Send initial state
+        local_cache = snapshot()
+
         yield f"data: {json.dumps({'type': 'init'})}\n\n"
 
         while True:
             try:
-                if os.path.exists(data_dir):
-                    for filename in sorted(os.listdir(data_dir)):
-                        filepath = os.path.join(data_dir, filename)
-                        if os.path.isfile(filepath) and re.match(r'^\d+$', filename):
-                            current_content = get_last_line(filepath)
+                current = snapshot()
 
-                            # Check if content changed
-                            if filename not in local_cache or local_cache[filename] != current_content:
-                                local_cache[filename] = current_content
-                                # Send update
-                                data = {
-                                    'type': 'update',
-                                    'file': filename,
-                                    'content': current_content
-                                }
-                                yield f"data: {json.dumps(data)}\n\n"
+                for key, content in current.items():
+                    if key not in local_cache or local_cache[key] != content:
+                        local_cache[key] = content
+                        row_name, cell_name = key.split('::', 1)
+                        yield f"data: {json.dumps({'type': 'update', 'row': row_name, 'file': cell_name, 'content': content})}\n\n"
 
-                time.sleep(0.5)  # Check every 500ms
+                for key in list(local_cache.keys()):
+                    if key not in current:
+                        local_cache.pop(key, None)
+                        row_name, cell_name = key.split('::', 1)
+                        yield f"data: {json.dumps({'type': 'delete', 'row': row_name, 'file': cell_name, 'content': ''})}\n\n"
+
+                time.sleep(0.5)
             except Exception as e:
                 print(f"Stream error: {e}")
                 break

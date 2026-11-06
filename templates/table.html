@@ -5,33 +5,58 @@
     <style>
         table {
             border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
         }
         th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
+            vertical-align: top;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         tr.updated {
             transition: background-color 1s ease-in-out;
+        }
+        .cell-content {
+            min-height: 1.2em;
+            font-family: monospace;
+        }
+        .cell-content * {
+            max-width: 100%;
         }
     </style>
 </head>
 <body>
     <table>
-        {% for file in files %}
-        <tr id="row-{{ file.name }}" data-file="{{ file.name }}">
-            <td>{{ file.name }}</td>
-            <td id="content-{{ file.name }}">...</td>
-        </tr>
-        {% endfor %}
+        <thead>
+            <tr>
+                <th>Row</th>
+                {% for file_name in file_names %}
+                <th>{{ file_name }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr id="row-{{ row.name }}" data-row="{{ row.name }}">
+                <td>{{ row.name }}</td>
+                {% for file_name in file_names %}
+                <td id="cell-{{ row.name }}-{{ file_name }}" class="cell-content">
+                    {% if row.cells_by_name.get(file_name) %}
+                        {{ row.cells_by_name[file_name].content | safe }}
+                    {% else %}
+                        &nbsp;
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
 
     <script>
-        const fileRows = new Set();
-        {% for file in files %}
-        fileRows.add('{{ file.name }}');
-        {% endfor %}
-
         const eventSource = new EventSource('/stream');
 
         eventSource.onopen = function() {
@@ -40,20 +65,18 @@
 
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
-            
+
             if (data.type === 'update') {
+                const row = data.row;
                 const file = data.file;
-                const content = data.content;
-                const contentCell = document.getElementById(`content-${file}`);
-                const row = document.getElementById(`row-${file}`);
-                
-                if (contentCell) {
-                    contentCell.textContent = content;
-                    // Add highlight effect
-                    row.classList.add('updated');
-                    setTimeout(() => {
-                        row.classList.remove('updated');
-                    }, 1000);
+                const content = data.content || '';
+                const cell = document.getElementById(`cell-${row}-${file}`);
+                const rowElement = document.getElementById(`row-${row}`);
+
+                if (cell) {
+                    cell.innerHTML = content;
+                    rowElement.classList.add('updated');
+                    setTimeout(() => rowElement.classList.remove('updated'), 1000);
                 }
             }
         };
@@ -62,7 +85,6 @@
             document.title = 'Disconnected - Attempting to reconnect...';
         };
 
-        // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
             eventSource.close();
         });
