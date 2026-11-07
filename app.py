@@ -1,10 +1,20 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request
 import os
 import re
 import time
 import json
 
 app = Flask(__name__)
+
+
+def get_stack_mode():
+    mode = request.args.get('stacking', request.args.get('st', 'consolidated'))
+    mode = (mode or 'consolidated').strip().lower()
+    if mode in ('con', 'consolidated'):
+        return 'consolidated'
+    if mode in ('aln', 'aligned'):
+        return 'aligned'
+    return 'consolidated'
 
 
 def get_data_rows(data_dir):
@@ -50,7 +60,7 @@ def index():
             if cell['name'] not in file_names:
                 file_names.append(cell['name'])
 
-    return render_template('table.html', rows=rows, file_names=file_names)
+    return render_template('table.html', rows=rows, file_names=file_names, stacking=get_stack_mode())
 
 
 @app.route('/stream')

@@ -20,17 +20,18 @@
 
         table {
             border-collapse: collapse;
-            width: auto;
             font-size: var(--font-size);
             line-height: 1.1;
-            white-space: nowrap;
         }
+
         th, td {
             border: 1px solid var(--border-color);
             padding: var(--cell-padding);
             text-align: left;
+            vertical-align: top;
             font-size: var(--font-size);
         }
+
         tr.updated {
             transition: background-color 1s ease-in-out;
         }
@@ -44,7 +45,8 @@
     </style>
 </head>
 <body>
-    <table>
+    {% if stacking == 'aligned' %}
+    <table class="aligned-table">
         <thead>
             <tr>
                 <th>Row</th>
@@ -56,9 +58,9 @@
         <tbody>
             {% for row in rows %}
             <tr id="row-{{ row.name }}" data-row="{{ row.name }}">
-                <td>{{ row.name }}</td>
+                <td class="row-label">{{ row.name }}</td>
                 {% for file_name in file_names %}
-                <td id="cell-{{ row.name }}-{{ file_name }}" class="cell-content">
+                <td id="cell-{{ row.name }}-{{ file_name }}" class="cell-content" data-file="{{ file_name }}">
                     {% if row.cells_by_name.get(file_name) %}
                         {{ row.cells_by_name[file_name].content | safe }}
                     {% else %}
@@ -70,9 +72,25 @@
             {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <table>
+        <tbody>
+            {% for row in rows %}
+            <tr id="row-{{ row.name }}" data-row="{{ row.name }}">
+                <td class="row-label">{{ row.name }}</td>
+                {% for cell in row.cells %}
+                <td id="cell-{{ row.name }}-{{ cell.name }}" class="cell-content" data-file="{{ cell.name }}">
+                    {{ cell.content | safe }}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
 
     <script>
-        const eventSource = new EventSource('/stream');
+        const eventSource = new EventSource('/stream?stacking=' + encodeURIComponent('{{ stacking }}'));
 
         eventSource.onopen = function() {
             document.title = 'Connected - Streaming Updates';
