@@ -7,6 +7,42 @@ import json
 app = Flask(__name__)
 
 
+def normalize_html_fragment(content):
+    """Convert invalid HTML fragments like <span color=green> into valid CSS spans."""
+    if not content:
+        return content
+
+    def replace_span(match):
+        attrs = (match.group('prefix') or '') + (match.group('suffix') or '')
+        color = match.group('color1') or match.group('color2') or match.group('color3') or ''
+        if not color:
+            return match.group(0)
+
+        attrs = attrs.rstrip()
+
+        style_match = re.search(
+            r'\bstyle\s*=\s*(?:"(?P<css1>[^"]*)"|\'(?P<css2>[^\']*)\'|(?P<css3>[^\s>]+))',
+            attrs,
+            flags=re.IGNORECASE,
+        )
+
+        if style_match:
+            css_value = style_match.group('css1') or style_match.group('css2') or style_match.group('css3') or ''
+            new_css = css_value.rstrip('; ') + '; color: ' + color + ';'
+            attrs = attrs[:style_match.start()] + f' style="{new_css}"' + attrs[style_match.end():]
+        else:
+            attrs = attrs + f' style="color: {color};"'
+
+        return attrs + '>'
+
+    return re.sub(
+        r'(?P<prefix><\s*span\b[^>]*?)\s+color\s*=\s*(?:"(?P<color1>[^"]*)"|\'(?P<color2>[^\']*)\'|(?P<color3>[^\s>]+))(?P<suffix>[^>]*)>',
+        replace_span,
+        content,
+        flags=re.IGNORECASE,
+    )
+
+
 def get_stack_mode():
     mode = request.args.get('stacking', request.args.get('st', 'consolidated'))
     mode = (mode or 'consolidated').strip().lower()
@@ -37,6 +73,7 @@ def get_data_rows(data_dir):
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                         content = f.read().strip()
+                    content = normalize_html_fragment(content)
                 except Exception:
                     content = ''
                 cells.append({'name': filename, 'content': content})
