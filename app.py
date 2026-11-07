@@ -62,12 +62,14 @@ def scan_row_names(data_dir):
     if not os.path.exists(data_dir):
         return rows
 
-    for entry in sorted(os.scandir(data_dir), key=lambda e: int(e.name) if re.match(r'^\d+$', e.name) else 999999):
-        if entry.name.startswith('.') or entry.name.endswith('~'):
+    entries = []
+    for entry in os.scandir(data_dir):
+        if should_ignore_name(entry.name):
             continue
         if entry.is_dir(follow_symlinks=False) and re.match(r'^\d+$', entry.name):
-            rows.append(entry.name)
-    return rows
+            entries.append(entry.name)
+
+    return sorted(entries, key=lambda value: int(value))
 
 
 def scan_row_files(dir_path):
@@ -75,38 +77,36 @@ def scan_row_files(dir_path):
     if not os.path.exists(dir_path):
         return files
 
-    for entry in sorted(os.scandir(dir_path), key=lambda e: e.name):
-        if entry.name.startswith('.') or entry.name.endswith('~'):
+    entries = []
+    for entry in os.scandir(dir_path):
+        if should_ignore_name(entry.name):
             continue
         if entry.is_file(follow_symlinks=False):
-            files.append(entry.name)
-    return files
+            entries.append(entry.name)
+
+    return sorted(entries)
+
+
+def read_cell_content(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read().strip()
+        return normalize_html_fragment(content)
+    except Exception:
+        return ''
 
 
 def get_data_rows(data_dir):
     rows = []
-    if not os.path.exists(data_dir):
-        return rows
-
-    row_names = []
-    for name in os.listdir(data_dir):
-        path = os.path.join(data_dir, name)
-        if os.path.isdir(path) and re.match(r'^\d+$', name):
-            row_names.append(name)
-
-    for row_name in sorted(row_names, key=lambda value: int(value)):
+    for row_name in scan_row_names(data_dir):
         dir_path = os.path.join(data_dir, row_name)
         cells = []
-        for filename in sorted(os.listdir(dir_path)):
+        for filename in scan_row_files(dir_path):
             filepath = os.path.join(dir_path, filename)
-            if os.path.isfile(filepath):
-                try:
-                    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.read().strip()
-                    content = normalize_html_fragment(content)
-                except Exception:
-                    content = ''
-                cells.append({'name': filename, 'content': content})
+            cells.append({
+                'name': filename,
+                'content': read_cell_content(filepath)
+            })
 
         rows.append({
             'name': row_name,
@@ -139,8 +139,9 @@ def stream():
         def snapshot():
             state = {}
             for row in get_data_rows(data_dir):
-                for cell in row['cells']:
-                    state[f"{row['name']}::{cell['name']}"] = cell['content']
+                state[row['name']] = {
+                    cell['name']: cell['content'] for cell in row['cells']
+                }
             return state
 
         local_cache = snapshot()
@@ -151,17 +152,30 @@ def stream():
             try:
                 current = snapshot()
 
-                for key, content in current.items():
-                    if key not in local_cache or local_cache[key] != content:
-                        local_cache[key] = content
-                        row_name, cell_name = key.split('::', 1)
-                        yield f"data: {json.dumps({'type': 'update', 'row': row_name, 'file': cell_name, 'content': content})}\n\n"
+                current_rows = set(current)
+                cached_rows = set(local_cache)
 
-                for key in list(local_cache.keys()):
-                    if key not in current:
-                        local_cache.pop(key, None)
-                        row_name, cell_name = key.split('::', 1)
-                        yield f"data: {json.dumps({'type': 'delete', 'row': row_name, 'file': cell_name, 'content': ''})}\n\n"
+                for row_name in sorted(current_rows | cached_rows, key=lambda value: int(value) if re.match(r'^\d+$', value) else 999999):
+                    if row_name not in current:
+                        local_cache.pop(row_name, None)
+                        yield f"data: {json.dumps({'type': 'delete', 'row': row_name, 'file': ''})}\n\n"
+                        continue
+
+                    cached_files = set(local_cache.get(row_name, {}))
+                    current_files = set(current.get(row_name, {}))
+
+                    for file_name in sorted(current_files | cached_files):
+                        old_content = local_cache.get(row_name, {}).get(file_name)
+                        new_content = current.get(row_name, {}).get(file_name)
+
+                        if file_name not in current_files:
+                            yield f"data: {json.dumps({'type': 'delete', 'row': row_name, 'file': file_name})}\n\n"
+                            continue
+
+                        if old_content != new_content:
+                            yield f"data: {json.dumps({'type': 'update', 'row': row_name, 'file': file_name, 'content': new_content})}\n\n"
+
+                    local_cache[row_name] = current[row_name]
 
                 time.sleep(0.5)
             except Exception as e:

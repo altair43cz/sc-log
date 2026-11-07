@@ -90,6 +90,29 @@
     {% endif %}
 
     <script>
+        function removeRow(rowName) {
+            const row = document.getElementById(`row-${rowName}`);
+            if (row) row.remove();
+        }
+
+        function removeCell(rowName, fileName) {
+            const cell = document.getElementById(`cell-${rowName}-${fileName}`);
+            if (cell) cell.remove();
+        }
+
+        function sortRows() {
+            const tbody = document.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).sort((a, b) => {
+                const aNum = Number.parseInt(a.dataset.row, 10);
+                const bNum = Number.parseInt(b.dataset.row, 10);
+                if (Number.isNaN(aNum) && Number.isNaN(bNum)) return a.dataset.row.localeCompare(b.dataset.row);
+                if (Number.isNaN(aNum)) return 1;
+                if (Number.isNaN(bNum)) return -1;
+                return aNum - bNum;
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
         function ensureRow(rowName) {
             let row = document.getElementById(`row-${rowName}`);
             if (row) return row;
@@ -105,6 +128,7 @@
             row.appendChild(label);
 
             tbody.appendChild(row);
+            sortRows();
             return row;
         }
 
@@ -143,6 +167,17 @@
                     cell.innerHTML = content;
                     rowElement.classList.add('updated');
                     setTimeout(() => rowElement.classList.remove('updated'), 1000);
+                }
+                sortRows();
+            }
+
+            if (data.type === 'delete') {
+                const row = data.row;
+                const file = data.file;
+                if (file) {
+                    removeCell(row, file);
+                } else {
+                    removeRow(row);
                 }
             }
         };
