@@ -90,6 +90,39 @@
     {% endif %}
 
     <script>
+        function ensureRow(rowName) {
+            let row = document.getElementById(`row-${rowName}`);
+            if (row) return row;
+
+            const tbody = document.querySelector('tbody');
+            row = document.createElement('tr');
+            row.id = `row-${rowName}`;
+            row.dataset.row = rowName;
+
+            const label = document.createElement('td');
+            label.className = 'row-label';
+            label.textContent = rowName;
+            row.appendChild(label);
+
+            tbody.appendChild(row);
+            return row;
+        }
+
+        function ensureCell(rowName, fileName, content) {
+            const cellId = `cell-${rowName}-${fileName}`;
+            let cell = document.getElementById(cellId);
+            if (cell) return cell;
+
+            const row = ensureRow(rowName);
+            cell = document.createElement('td');
+            cell.id = cellId;
+            cell.className = 'cell-content';
+            cell.dataset.file = fileName;
+            cell.innerHTML = content || '';
+            row.appendChild(cell);
+            return cell;
+        }
+
         const eventSource = new EventSource('/stream?stacking=' + encodeURIComponent('{{ stacking }}'));
 
         eventSource.onopen = function() {
@@ -103,8 +136,8 @@
                 const row = data.row;
                 const file = data.file;
                 const content = data.content || '';
-                const cell = document.getElementById(`cell-${row}-${file}`);
-                const rowElement = document.getElementById(`row-${row}`);
+                const cell = document.getElementById(`cell-${row}-${file}`) || ensureCell(row, file, content);
+                const rowElement = document.getElementById(`row-${row}`) || ensureRow(row);
 
                 if (cell) {
                     cell.innerHTML = content;

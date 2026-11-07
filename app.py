@@ -53,6 +53,36 @@ def get_stack_mode():
     return 'consolidated'
 
 
+def should_ignore_name(name):
+    return name.startswith('.') or name.endswith('~')
+
+
+def scan_row_names(data_dir):
+    rows = []
+    if not os.path.exists(data_dir):
+        return rows
+
+    for entry in sorted(os.scandir(data_dir), key=lambda e: int(e.name) if re.match(r'^\d+$', e.name) else 999999):
+        if entry.name.startswith('.') or entry.name.endswith('~'):
+            continue
+        if entry.is_dir(follow_symlinks=False) and re.match(r'^\d+$', entry.name):
+            rows.append(entry.name)
+    return rows
+
+
+def scan_row_files(dir_path):
+    files = []
+    if not os.path.exists(dir_path):
+        return files
+
+    for entry in sorted(os.scandir(dir_path), key=lambda e: e.name):
+        if entry.name.startswith('.') or entry.name.endswith('~'):
+            continue
+        if entry.is_file(follow_symlinks=False):
+            files.append(entry.name)
+    return files
+
+
 def get_data_rows(data_dir):
     rows = []
     if not os.path.exists(data_dir):
